@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Typing Energy Visualization</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #1a1a1a;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+        }
+        #gameCanvas {
+            background: black;
+            border: 1px solid #333;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        #energyDisplay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            z-index: 10;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
+        #startPrompt {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 10;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="energyDisplay">0 Wh - 0</div>
+        <div id="startPrompt">Tap or click to start<br>Then type to add energy!</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const energyDisplay = document.getElementById('energyDisplay');
+        const startPrompt = document.getElementById('startPrompt');
+        const gameContainer = document.getElementById('gameContainer');
+
+        // Constants matching Python version
+        const BALL_COUNT = 200;
+        const BALL_RADIUS = 2;
+        const MIN_SPEED = 0;
+        const MAX_SPEED = 5;
+        const SPEED_DECAY = 0.98;
+        const ENERGY_SCALE = 0.1;
+
+        // Colors
+        const COLORS = [
+            '#FF0000', '#00FF00', '#0000FF', '#FFFF00',
+            '#FF00FF', '#00FFFF', '#FF8000', '#8000FF',
+            '#00FF80'
+        ];
+
+        // Set fixed canvas size
+        canvas.width = 800;
+        canvas.height = 600;
+
+        class Ball {
+            constructor() {
+                this.radius = BALL_RADIUS;
+                this.x = Math.random() * (canvas.width - 2 * this.radius) + this.radius;
+                this.y = Math.random() * (canvas.height - 2 * this.radius) + this.radius;
+                this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
+                this.dx = Math.random() * 2 - 1;
+                this.dy = Math.random() * 2 - 1;
+                this.speed = MIN_SPEED;
+            }
+
+            move() {
+                this.x += this.dx * this.speed;
+                this.y += this.dy * this.speed;
+
+                if (this.x - this.radius <= 0 || this.x + this.radius >= canvas.width) {
+                    this.dx *= -1;
+                }
+                if (this.y - this.radius <= 0 || this.y + this.radius >= canvas.height) {
+                    this.dy *= -1;
+                }
+
+                this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
+                this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
+
+                this.speed = Math.max(MIN_SPEED, this.speed * SPEED_DECAY);
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+
+            checkCollision(other) {
+                const dx = this.x - other.x;
+                const dy = this.y - other.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < this.radius + other.radius) {
+                    const angle = Math.atan2(dy, dx);
+                    const sin = Math.sin(angle);
+                    const cos = Math.cos(angle);
+
+                    const tempDx = this.dx;
+                    const tempDy = this.dy;
+                    this.dx = other.dx;
+                    this.dy = other.dy;
+                    other.dx = tempDx;
+                    other.dy = tempDy;
+
+                    const overlap = (this.radius + other.radius - distance) / 2;
+                    this.x += overlap * cos;
+                    this.y += overlap * sin;
+                    other.x -= overlap * cos;
+                    other.y -= overlap * sin;
+                }
+            }
+        }
+
+        function calculateTotalEnergy(balls) {
+            return balls.reduce((total, ball) => total + 0.5 * (ball.speed ** 2), 0) * ENERGY_SCALE;
+        }
+
+        function getEnergyDescription(energy) {
+            if (energy === 0) return { text: "0 Wh", color: "#00FF00" };
+            if (energy < 100) return { text: "< 1 Wh", color: "#FFA500" };
+            if (energy < 200) return { text: "2 Wh", color: "#FFA500" };
+            if (energy < 300) return { text: "3 Wh", color: "#FFA500" };
+            if (energy < 400) return { text: "4 Wh", color: "#FFA500" };
+            if (energy < 500) return { text: "5 Wh", color: "#FFA500" };
+            return { text: "6 Wh", color: "#FF0000" };
+        }
+
+        let balls = [];
+        let lastKeyTime = Date.now();
+        let gameStarted = false;
+        let animationFrameId;
+
+        function initGame() {
+            balls = Array.from({ length: BALL_COUNT }, () => new Ball());
+        }
+
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = 0; i < balls.length; i++) {
+                balls[i].move();
+                for (let j = i + 1; j < balls.length; j++) {
+                    balls[i].checkCollision(balls[j]);
+                }
+                balls[i].draw();
+            }
+
+            const energy = calculateTotalEnergy(balls);
+            const energyDesc = getEnergyDescription(energy);
+            energyDisplay.textContent = `${energyDesc.text} - ${Math.round(energy)}`;
+            energyDisplay.style.color = energyDesc.color;
+
+            animationFrameId = requestAnimationFrame(update);
+        }
+
+        function handleInput() {
+            if (!gameStarted) return;
+            
+            const currentTime = Date.now();
+            const timeDiff = (currentTime - lastKeyTime) / 1000;
+            
+            if (timeDiff > 0) {
+                const typingSpeed = Math.min(MAX_SPEED, Math.max(1, 1.0 / timeDiff));
+                balls.forEach(ball => {
+                    ball.speed = Math.min(MAX_SPEED, ball.speed + typingSpeed);
+                });
+            }
+            lastKeyTime = currentTime;
+        }
+
+        // Start game on click/tap
+        gameContainer.addEventListener('click', () => {
+            if (!gameStarted) {
+                gameStarted = true;
+                startPrompt.style.display = 'none';
+                initGame();
+                update();
+            }
+        });
+
+        // Handle keyboard input
+        document.addEventListener('keydown', handleInput);
+
+        // Handle touch input for mobile
+        gameContainer.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleInput();
+        });
+
+        // Cleanup
+        window.addEventListener('beforeunload', () => {
+            cancelAnimationFrame(animationFrameId);
+        });
+    </script>
+</body>
+</html>
