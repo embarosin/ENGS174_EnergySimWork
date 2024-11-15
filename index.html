@@ -151,11 +151,11 @@
 
         function getEnergyDescription(energy) {
             if (energy === 0) return { text: "0 Wh", color: "#00FF00" };
-            if (energy < 100) return { text: "< 1 Wh", color: "#FFA500" };
-            if (energy < 200) return { text: "2 Wh", color: "#FFA500" };
-            if (energy < 300) return { text: "3 Wh", color: "#FFA500" };
-            if (energy < 400) return { text: "4 Wh", color: "#FFA500" };
-            if (energy < 500) return { text: "5 Wh", color: "#FFA500" };
+            if (energy < 100) return { text: "< .1 kWh", color: "#FFA500" };
+            if (energy < 200) return { text: ".2 kWh", color: "#FFA500" };
+            if (energy < 300) return { text: ".3 kWh", color: "#FFA500" };
+            if (energy < 400) return { text: ".4 kWh", color: "#FFA500" };
+            if (energy < 500) return { text: ".5 kWh", color: "#FFA500" };
             return { text: "6 Wh", color: "#FF0000" };
         }
 
